@@ -1,8 +1,6 @@
-# config.py
-
-import os
+# config/Db_config.py
 
 class Config:
-    # Cấu hình chung cho Flask và SQLAlchemy
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///users.db'
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    MONGO_URI = 'mongodb://localhost:27017/your_database' 
+    SECRET_KEY = 'ThinhVipPro'
+    db_connection = 'LOCAL_DB.db'

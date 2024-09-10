@@ -1,36 +1,29 @@
-# routes/user_routes.py
-
+#routes/user_routes.py
 from flask import Blueprint
 from flask import Flask, jsonify, request
+from models.User import UserAction
 from config.Db_config import Config
-from database.db import db
-from models import User
-from datetime import datetime
+
+
 user_bp = Blueprint('users', __name__)
+user_action = UserAction(Config.db_connection)
 
-# @user_bp.route('/users', methods=['GET'])
-# def get_users():
-#     return {'message': 'Hello from users route'}
+@user_bp.route('/Users/Get/<int:user_id>', methods=['GET'])
+def get_user(user_id=None):
+    if user_id:
+        user = user_action.get_by_id(user_id)
+        if user:
+            return jsonify(user)
+    else:
+        users = user_action.show_all()
+        return jsonify(users)
+        
+    return jsonify({'message': 'User not found'}), 404
 
-
-
-# API lấy danh sách người dùng
-@user_bp.route('/users', methods=['GET'])
-def get_users():
-    users = User.query.all()
-    return jsonify([user.to_dict() for user in users])
-
-# API lấy thông tin người dùng theo id
-@user_bp.route('/users/<int:id>', methods=['GET'])
-def get_user(id):
-    user = User.query.get_or_404(id)
-    return jsonify(user.to_dict())
-
-# API thêm người dùng
-@user_bp.route('/users', methods=['GET'])
+@user_bp.route('/Users', methods=['POST'])
 def create_user():
     data = request.json
-    new_user = User(
+    user_id = user_action.create(
         username=data.get('username'),
         email=data.get('email'),
         phone=data.get('phone'),
@@ -39,30 +32,28 @@ def create_user():
         role=data.get('role'),
         creator=data.get('creator')
     )
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify(new_user.to_dict()), 201
+    return jsonify({'user_id': user_id}), 201
 
-# API cập nhật người dùng
-@user_bp.route('/users/<int:id>', methods=['PUT'])
-def update_user(id):
-    user = User.query.get_or_404(id)
+@user_bp.route('/Users/Update/<int:user_id>', methods=['POST'])
+def update_user(user_id):
     data = request.json
-    user.modify_time = datetime.utcnow()
-    user.modifier = data.get('modifier')
-    user.username = data.get('username', user.username)
-    user.email = data.get('email', user.email)
-    user.phone = data.get('phone', user.phone)
-    user.fullname = data.get('fullname', user.fullname)
-    user.login_name = data.get('login_name', user.login_name)
-    user.role = data.get('role', user.role)
-    db.session.commit()
-    return jsonify(user.to_dict())
+    updated = user_action.update(
+        user_id,
+        username=data.get('username'),
+        email=data.get('email'),
+        phone=data.get('phone'),
+        fullname=data.get('fullname'),
+        login_name=data.get('login_name'),
+        role=data.get('role'),
+        modifier=data.get('modifier')
+    )
+    if updated:
+        return jsonify({'message': 'User updated'})
+    return jsonify({'message': 'User not found'}), 404
 
-# API xóa người dùng
-@user_bp.route('/users/<int:id>', methods=['DELETE'])
-def delete_user(id):
-    user = User.query.get_or_404(id)
-    db.session.delete(user)
-    db.session.commit()
-    return jsonify({'message': 'User deleted successfully'})
+@user_bp.route('/Users/Delete/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    deleted = user_action.delete(user_id)
+    if deleted:
+        return jsonify({'message': 'User deleted'})
+    return jsonify({'message': 'User not found'}), 404
