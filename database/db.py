@@ -1,4 +1,4 @@
-# db.py
+#database/db.py
 
 from flask_sqlalchemy import SQLAlchemy
 

@@ -13,3 +13,4 @@ def TimeUTC7():
     local_time = utc_now.astimezone(utc_plus_7)
     
     return local_time
+

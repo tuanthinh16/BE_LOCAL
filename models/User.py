@@ -1,5 +1,7 @@
 #models/user.py
 from datetime import datetime
+
+from flask import jsonify
 from database.db import db
 import sqlite3
 from config.Db_config import Config
@@ -7,7 +9,8 @@ from config.uct7_config import TimeUTC7
 from loguru import logger as log
 from sqlalchemy.orm import relationship
 import modules.Base256Encode as endcode256
-import models.Wallet
+from models.Wallet import Wallet_Action,LOCAL_WALLET
+from modules.Convert import SystemTimeToTimeNumber
 
 
 class LOCAL_USER(db.Model):
@@ -17,15 +20,15 @@ class LOCAL_USER(db.Model):
     creator = db.Column(db.String(50))
     modify_time = db.Column(db.DateTime, nullable=True)
     modifier = db.Column(db.String(50), nullable=True)
+    is_active = db.Column(db.Integer,default = 1)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     phone = db.Column(db.String(20))
     fullname = db.Column(db.String(100))
     login_name = db.Column(db.String(50))
-    role = db.Column(db.String(20))
-    is_active = db.Column(db.Integer)
-    user_identifer = db.Column(db.String(100))
-    wallet_id = db.Column(db.Integer)
+    role_id = db.Column(db.Integer,nullable = True)
+    user_identifer = db.Column(db.String(500))
+    wallet_id = db.Column(db.Integer,nullable=True)
 
     wallets = relationship('LOCAL_WALLET', back_populates='user')
 
@@ -41,32 +44,31 @@ class LOCAL_USER(db.Model):
             'phone': self.phone,
             'fullname': self.fullname,
             'login_name': self.login_name,
-            'role': self.role,
+            'role_id': self.role_id,
             'user_identifer':self.user_identifer,
             'wallet_id':self.wallet_id
         }
     
-    def __init__(self, username=None, email=None, phone=None, fullname=None, login_name=None, role=None, creator=None, modifier=None,user_identifer = None,wallet_id = None):
+    def __init__(self, username=None, create_time = None,email=None, phone=None, fullname=None, login_name=None, role_id=None, creator=None, modifier=None,user_identifer = None,wallet_id = None,is_active=1):
         self.username = username
         self.email = email
         self.phone = phone
+        self.create_time = create_time
         self.fullname = fullname
         self.login_name = login_name
-        self.role = role
+        self.role_id = role_id
         self.creator = creator
         self.modifier = modifier
         self.user_identifer = user_identifer
         self.wallet_id = wallet_id
-        # `create_time` and `modify_time` are handled automatically by default and on modification
-    def is_active(self):
-        return True 
+        self.is_active = is_active
 
 
 
 class UserAction:
     def __init__(self, db_connection):
         self.db_connection = db_connection
-        self.conn = sqlite3.connect(self.db_connection)
+        self.conn = sqlite3.connect(self.db_connection,check_same_thread=False)
         self.log  = log
     def initTable(self):
         cur = self.conn.cursor()
@@ -82,14 +84,14 @@ class UserAction:
             phone TEXT,
             fullname TEXT,
             login_name TEXT,
-            role TEXT,
-            is_active INTEGERT,
-            user_identifer TEXT
+            role_id TEXT,
+            is_active INTEGERT DEFAULT 1,
+            user_identifer TEXT,
+            wallet_id INTEGER
         )
         '''
         cur.execute(sql)
         self.conn.commit()
-        self.conn.close()
     def show_all(self):
         result = []
         try:
@@ -111,7 +113,8 @@ class UserAction:
                     fullname=row[8],
                     login_name=row[9],
                     role=row[10],
-                    user_identifer = row[12]
+                    user_identifer = row[12],
+                    wallet_id=row[13]
                 )
                 result.append(user.to_dict())
         except Exception as e:
@@ -139,45 +142,68 @@ class UserAction:
                     fullname=row[8],
                     login_name=row[9],
                     role=row[10],
-                    user_identifer = row[12]
+                    user_identifer = row[12],
+                    wallet_id=row[13]
                 )
-                return user.to_dict()
+                return jsonify(user.to_dict())
         except Exception as e:
             self.log.error("Error when find user. Error:"+str(e))
             
         return None
 
-    def create(self, username, email, phone, fullname, login_name, role, creator):
+    def create(self, username, email, phone, fullname, login_name, role_id, creator):
         try:
             cur = self.conn.cursor()
-            sql = """
-            INSERT INTO LOCAL_USERS (create_time, creator, username, email, phone, fullname, login_name, role,is_active,user_identifer,wallet_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?)
-            """
-            create_time = TimeUTC7()
-            user_identifer = endcode256.hash_sha256({'username':username,'email':email,'role':role})
-            cur.execute(sql, (create_time, creator, username, email, phone, fullname, login_name, role,1,user_identifer,None))
-            wallet = models.Wallet.LOCAL_WALLET(username=username, user_id=user_id, balance=0.0, creator=creator)
-            db.session.add(wallet)
-            db.session.commit()
-            self.conn.commit()
-            user_id = cur.lastrowid
-            self.conn.close()
-        except Exception as e:
-            self.log.error("Error when create user. Error: "+str(e))
             
-        return user_id
+            # Check if email already exists
+            check_sql = "SELECT COUNT(*) FROM LOCAL_USERS WHERE email = ? or username = ?"
+            cur.execute(check_sql, (email,username,))
+            email_exists = cur.fetchone()[0]
+            
+            if email_exists > 0:
+                return {'error': 'Email or Username already exists'}
+            
+            # SQL query to insert user
+            sql = """
+            INSERT INTO LOCAL_USERS (create_time, creator, username, email, phone, fullname, login_name, role_id,is_active,user_identifer)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)
+            """
+            create_time = SystemTimeToTimeNumber(TimeUTC7())
+            user_identifer_dict = f"username={username};email={email};role={role_id}"
+            user_identifer = endcode256.hash_sha256(user_identifer_dict)
+            
+            # Parameters to execute
+            params = (create_time, creator, username, email, phone, fullname, login_name, role_id,1,user_identifer)
+            
+            # Execute SQL query with parameters
+            cur.execute(sql, params)
+            
+            # Get the last inserted user ID
+            user_id = cur.lastrowid
+            
+            
+            # Commit transactions
+            self.conn.commit()
+            
+            # Close connections
+            self.conn.close()
+            
+            return {'user_id': user_id}
 
-    def update(self, user_id, username=None, email=None, phone=None, fullname=None, login_name=None, role=None, modifier=None):
+        except Exception as e:
+            self.log.error(f"Error when creating user. Error: {str(e)}")
+            return {'error': str(e)}
+
+    def update(self, user_id, username=None, email=None, phone=None, fullname=None, login_name=None, role_id=None, modifier=None):
         try:
             cur = self.conn.cursor()
             sql = """
             UPDATE LOCAL_USERS
-            SET username = ?, email = ?, phone = ?, fullname = ?, login_name = ?, role = ?, modifier = ?, modify_time = ?
+            SET username = ?, email = ?, phone = ?, fullname = ?, login_name = ?, role_id = ?, modifier = ?, modify_time = ?
             WHERE id = ?
             """
             modify_time = TimeUTC7() if modifier else None
-            cur.execute(sql, (username, email, phone, fullname, login_name, role, modifier, modify_time, user_id))
+            cur.execute(sql, (username, email, phone, fullname, login_name, role_id, modifier, modify_time, user_id))
             self.conn.commit()
             self.conn.close()
         except Exception as e:
@@ -193,4 +219,27 @@ class UserAction:
             self.conn.close()
         except Exception as e:
             self.log.error("Error when delete user. Error: "+str(e))
+    def insert_sample_data(self):
+        try:
+            cur = self.conn.cursor()
+            sql = """
+            INSERT INTO LOCAL_USERS (create_time, creator, username, email, phone, fullname, login_name, role_id, is_active, user_identifer, wallet_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            create_time = SystemTimeToTimeNumber(TimeUTC7())
+            creator = "admin"
+            username = "john_doe"
+            email = "john.doe@example.com"
+            phone = "+1234567890"
+            fullname = "John Doe"
+            login_name = "johndoe"
+            role_id = 1
+            user_identifer = endcode256.hash_sha256(f"username={username};email={email};role_id={role_id}")
+            cur.execute(sql, (create_time, creator, username, email, phone, fullname, login_name, role_id, 1, user_identifer, None))
+            self.conn.commit()
+            self.log.info("Sample user data inserted successfully.")
+        except Exception as e:
+            self.log.error(f"Error inserting sample user data. Error: {str(e)}")
+        finally:
+            self.conn.close()
             

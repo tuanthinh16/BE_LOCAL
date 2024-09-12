@@ -23,11 +23,11 @@ def get_user(user_id=None):
     log.error("User not found. "+encode.encode_base64("user_id="+str(user_id)))
     return jsonify({'message': 'User not found'}), 404
 
-@user_bp.route('/Users', methods=['POST'])
+@user_bp.route('/Users/Create', methods=['POST'])
 def create_user():
     log.debug("Recive API: Create user")
     data = request.json
-    user_id = user_action.create(
+    res = user_action.create(
         username=data.get('username'),
         email=data.get('email'),
         phone=data.get('phone'),
@@ -36,7 +36,13 @@ def create_user():
         role=data.get('role'),
         creator=data.get('creator')
     )
-    return jsonify({'user_id': user_id}), 201
+    if 'user_id' in res:
+        return jsonify(res), 201
+    if 'error' in res:
+        return jsonify(res), 500
+    else:
+        log.error("Error when creating user")
+        return "error when create user", 500
 
 @user_bp.route('/Users/Update/<int:user_id>', methods=['POST'])
 def update_user(user_id):
