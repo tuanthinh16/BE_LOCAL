@@ -11,7 +11,6 @@ class DAO:
             conn = sqlite3.connect(self.db_connection)  
             cur = conn.cursor()
             cur.execute(self.query)
-            conn.close()
             rows = cur.fetchall()
             return rows
         else: 

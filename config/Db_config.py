@@ -1,6 +1,8 @@
-# config/Db_config.py
+# config/config_db.py
 
 class Config:
-    MONGO_URI = 'mongodb://localhost:27017/your_database' 
     SECRET_KEY = 'ThinhVipPro'
-    db_connection = 'LOCAL_DB.db'
+    
+    # Cấu hình kết nối PostgreSQL
+    SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:thinh1637@localhost:1521/LOCAL_RS'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False

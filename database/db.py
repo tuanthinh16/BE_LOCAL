@@ -1,6 +1,9 @@
-#database/db.py
+# database/db.py
 
 from flask_sqlalchemy import SQLAlchemy
 
-# Khởi tạo đối tượng SQLAlchemy (ORM)
+# Tạo đối tượng SQLAlchemy
 db = SQLAlchemy()
+
+def init_db(app):
+    db.init_app(app)

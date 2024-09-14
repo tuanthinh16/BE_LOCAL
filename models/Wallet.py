@@ -1,10 +1,8 @@
-#models/wallet.py
+# models/wallet.py
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey
 from sqlalchemy.orm import relationship
 from database.db import db
-import sqlite3
-from config.Db_config import Config
 from config.uct7_config import TimeUTC7
 from loguru import logger as log
 import modules.Base256Encode as endcode256
@@ -12,19 +10,19 @@ from modules.Convert import SystemTimeToTimeNumber
 
 class LOCAL_WALLET(db.Model):
     __tablename__ = 'LOCAL_WALLET'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    create_time = Column(DateTime, default=TimeUTC7())
-    creator = Column(String(50))
-    modify_time = Column(DateTime, nullable=True)
-    modifier = Column(String(50), nullable=True)
-    username = Column(String(50), unique=True, nullable=False)
-    user_id = Column(Integer, ForeignKey('LOCAL_USERS.id'), nullable=False)
-    balance = Column(DECIMAL, default=0.0)
-    transaction_id = Column(Integer,nullable=True)
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    create_time = db.Column(db.BigInteger)
+    creator = db.Column(db.String)
+    modify_time = db.Column(db.BigInteger, nullable=True)
+    modifier = db.Column(db.String, nullable=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('LOCAL_USERS.id'), nullable=False)
+    balance = db.Column(db.DECIMAL, default=0.0)
+    transaction_id = db.Column(db.Integer, nullable=True)
 
-    user = relationship('LOCAL_USER', back_populates='wallets')
-
-    def __init__(self, username=None,create_time = None, user_id=None, balance=0.0, creator=None,transaction_id=None):
+    def __init__(self, _id=None, username=None, create_time=None, user_id=None, balance=0.0, creator=None, transaction_id=None):
+        self.id = _id
         self.username = username
         self.user_id = user_id
         self.balance = balance
@@ -32,80 +30,109 @@ class LOCAL_WALLET(db.Model):
         self.transaction_id = transaction_id
         self.create_time = create_time
 
-def set_journal_mode(conn):
-    conn.execute('PRAGMA journal_mode=WAL;') 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'create_time': self.create_time,
+            'creator': self.creator,
+            'modify_time': self.modify_time,
+            'modifier': self.modifier,
+            'username': self.username,
+            'user_id': self.user_id,
+            'balance': self.balance,
+            'transaction_id': self.transaction_id
+        }
+
 class Wallet_Action:
-    def __init__(self, db_connection):
-        self.db_connection = db_connection
-        self.conn = sqlite3.connect(self.db_connection)
-        set_journal_mode(self.conn)  # Set journal mode to WAL
-        self.conn.isolation_level = None  # Use autocommit mode for simplicity
-        self.log  = log
+    def __init__(self):
+        self.log = log
+
     def initTable(self):
+        # SQLAlchemy tự động tạo bảng nếu không tồn tại khi khởi động ứng dụng
+        pass
+
+    def create_wallet(self, username, user_id):
         try:
-            cur = self.conn.cursor()
-            sql = '''
-            CREATE TABLE IF NOT EXISTS LOCAL_WALLET (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                create_time TEXT,
-                creator TEXT,
-                modify_time TEXT,
-                modifier TEXT,
-                username TEXT UNIQUE NOT NULL,
-                user_id INTEGER,
-                balance DECIMAL,
-                transaction_id INTEGER
-            )
-            '''
-            cur.execute(sql)
-            self.conn.commit()
-            self.log.info("LOCAL_WALLET table initialized successfully.")
-        except Exception as e:
-            self.log.error("Error initializing LOCAL_WALLET table: " + str(e))
-
-
-
-    def create_wallet(self, username,user_id):
-        try:
-            cur = self.conn.cursor()
-            sql = """
-            INSERT INTO LOCAL_WALLET (create_time, creator, username, user_id, balance)
-            VALUES (?, ?, ?, ?, ?)
-            """
-            # Execute SQL query with the correct number of parameters
             create_time = SystemTimeToTimeNumber(TimeUTC7())
             creator = "admin"
             balance = 0.0
-            cur.execute(sql, (create_time, creator, username, user_id, balance))
-            
-            wallet_id = cur.lastrowid
-            
-            # Commit the transaction
-            self.conn.commit()
-            self.conn.close()
-            
-            return wallet_id
-        
+            wallet = LOCAL_WALLET(
+                create_time=create_time,
+                creator=creator,
+                username=username,
+                user_id=user_id,
+                balance=balance
+            )
+            db.session.add(wallet)
+            db.session.commit()
+            return wallet.id
         except Exception as e:
-            log.error(f"Error when creating wallet. Error: {str(e)}")
+            self.log.error(f"Error when creating wallet. Error: {str(e)}")
             return {'error': str(e)}
-        
-    def insert_sample_data(self):
+
+    def get_all_wallets(self):
         try:
-            cur = self.conn.cursor()
-            sql = """
-            INSERT INTO LOCAL_WALLET (create_time, creator, username, user_id, balance)
-            VALUES (?, ?, ?, ?, ?)
-            """
-            create_time = SystemTimeToTimeNumber(TimeUTC7())
-            creator = "admin"
-            username = "john_doe"
-            user_id = 1  # Assuming user with ID 1 exists
-            balance = 1000.0
-            cur.execute(sql, (create_time, creator, username, user_id, balance))
-            self.conn.commit()
-            self.log.info("Sample wallet data inserted successfully.")
+            wallets = LOCAL_WALLET.query.all()
+            return [wallet.to_dict() for wallet in wallets]
         except Exception as e:
-            self.log.error(f"Error inserting sample wallet data. Error: {str(e)}")
-        finally:
-            self.conn.close()
+            self.log.error(f"Error retrieving wallets. Error: {str(e)}")
+            return {'error': str(e)}
+
+    def get_wallet_by_id(self, wallet_id):
+        try:
+            wallet = LOCAL_WALLET.query.get(wallet_id)
+            return wallet.to_dict() if wallet else {'error': 'Wallet not found'}
+        except Exception as e:
+            self.log.error(f"Error retrieving wallet by ID. Error: {str(e)}")
+            return {'error': str(e)}
+    def get_wallet_by_user_id(self, user_id):
+        try:
+            # Thực hiện truy vấn SQL để lấy ví theo user_id
+            sql = '''
+            SELECT * FROM LOCAL_WALLET
+            WHERE user_id = :user_id
+            '''
+            result = db.session.execute(sql, {'user_id': user_id}).fetchone()
+            
+            if result:
+                
+                return result
+            else:
+                return {'error': 'Wallet not found'}
+        except Exception as e:
+            self.log.error(f"Error retrieving wallet by user ID. Error: {str(e)}")
+            return {'error': str(e)}
+
+    def update_wallet(self, wallet_id, username=None, balance=None, modifier=None):
+        try:
+            wallet = LOCAL_WALLET.query.get(wallet_id)
+            if wallet:
+                if username:
+                    wallet.username = username
+                if balance is not None:
+                    wallet.balance = balance
+                if modifier:
+                    wallet.modifier = modifier
+                    wallet.modify_time = SystemTimeToTimeNumber(TimeUTC7())
+                
+                db.session.commit()
+                return {'success': 'Wallet updated successfully'}
+            else:
+                return {'error': 'Wallet not found'}
+        except Exception as e:
+            self.log.error(f"Error updating wallet. Error: {str(e)}")
+            return {'error': str(e)}
+
+    def delete_wallet(self, wallet_id):
+        try:
+            wallet = LOCAL_WALLET.query.get(wallet_id)
+            if wallet:
+                db.session.delete(wallet)
+                db.session.commit()
+                return {'success': 'Wallet deleted successfully'}
+            else:
+                return {'error': 'Wallet not found'}
+        except Exception as e:
+            self.log.error(f"Error deleting wallet. Error: {str(e)}")
+            return {'error': str(e)}
+
