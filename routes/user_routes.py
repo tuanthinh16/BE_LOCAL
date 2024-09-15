@@ -7,10 +7,16 @@ from config.log_config import setup_logging
 from loguru import logger as log
 import modules.Base64Encode as encode
 import modules.BaseMd5Encode as md5
+import modules.JwtToken as token
+
 user_bp = Blueprint('users', __name__)
 user_action = UserAction()
 
+
+
+
 @user_bp.route('/api/Users/Get/<int:user_id>', methods=['GET'])
+@token.token_required
 def get_user(user_id=None):
     log.debug("Recive API: /User/Get/"+encode.encode_base64("user_id="+str(user_id)))
     if user_id:
@@ -46,6 +52,7 @@ def create_user():
         return "error when create user", 500
 
 @user_bp.route('/api/Users/Update/<int:user_id>', methods=['POST'])
+@token.token_required
 def update_user(user_id):
     
     data = request.json
@@ -63,6 +70,7 @@ def update_user(user_id):
     return updated
 
 @user_bp.route('/api/Users/Delete/<int:user_id>', methods=['POST'])
+@token.token_required
 def delete_user(user_id):
     log.debug("Recive API: Delete "+encode.encode_base64("user_id="+str(user_id)))
     deleted = user_action.delete(user_id)

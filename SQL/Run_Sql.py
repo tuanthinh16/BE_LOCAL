@@ -1,17 +1,18 @@
-
-import sqlite3
-
+from sqlalchemy import text
 
 class DAO:
-    def __init__(self,db_connection,query) -> None:
-        self.query = query
-        self.db_connection = db_connection
-    def Get(self):
-        if self.query:
-            conn = sqlite3.connect(self.db_connection)  
-            cur = conn.cursor()
-            cur.execute(self.query)
-            rows = cur.fetchall()
-            return rows
-        else: 
+    def __init__(self, db_session) -> None:
+        self.db_session = db_session
+
+    def get(self,query):
+        if query:
+            try:
+                # Use SQLAlchemy's text() function to handle raw SQL
+                result = self.db_session.execute(text(query))
+                rows = result.fetchall()
+                return rows
+            except Exception as e:
+                # Handle and log the exception
+                return {'error': str(e)}
+        else:
             return None

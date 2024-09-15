@@ -4,11 +4,12 @@ from models.Wallet import Wallet_Action
 from config.Db_config import Config
 from loguru import logger as log
 import modules.Base64Encode as encode
-
+import modules.JwtToken as token
 wallet_bp = Blueprint('Wallet', __name__)
 wallet_action = Wallet_Action()
 
 @wallet_bp.route('/api/Wallet/Get/<int:wallet_id>', methods=['GET'])
+@token.token_required
 def get_wallet(wallet_id=None):
     log.debug("Recive API: /Wallet/Get/" + encode.encode_base64("wallet_id=" + str(wallet_id)))
     if wallet_id:
@@ -22,6 +23,7 @@ def get_wallet(wallet_id=None):
     return jsonify({'message': 'Wallet not found'}), 404
 
 @wallet_bp.route('/api/Wallet/Create', methods=['POST'])
+@token.token_required
 def create_wallet():
     log.debug("Recive API: Create wallet")
     data = request.json
@@ -40,6 +42,7 @@ def create_wallet():
         return "error when create wallet", 500
 
 @wallet_bp.route('/api/Wallet/Update/<int:wallet_id>', methods=['POST'])
+@token.token_required
 def update_wallet(wallet_id):
     data = request.json
     log.debug("Recive API: Update wallet data:" + encode.encode_base64(str(data)))
@@ -47,13 +50,15 @@ def update_wallet(wallet_id):
         wallet_id,
         username=data.get('username'),
         balance=data.get('balance'),
-        modifier=data.get('modifier')
+        fee = data.get('fee'),
+        modifier=token.decode_jwt_token(token.get_token()).get('username')
     )
     if updated:
         return jsonify({'message': 'Wallet updated'})
     return jsonify({'message': 'Wallet not found'}), 404
 
 @wallet_bp.route('/api/Wallet/Delete/<int:wallet_id>', methods=['POST'])
+@token.token_required
 def delete_wallet(wallet_id):
     log.debug("Recive API: Delete " + encode.encode_base64("wallet_id=" + str(wallet_id)))
     deleted = wallet_action.delete_wallet(wallet_id)

@@ -4,11 +4,14 @@ from models.Transaction import Transaction_Action
 from config.Db_config import Config
 from loguru import logger as log
 import modules.Base64Encode as encode
+import modules.JwtToken as token
 
 transaction_bp = Blueprint('Transaction', __name__)
 transaction_action = Transaction_Action()
 
+
 @transaction_bp.route('/api/Transaction/Get/<int:transaction_id>', methods=['GET'])
+@token.token_required
 def get_transaction(transaction_id=None):
     log.debug("Recive API: /Transaction/Get/" + encode.encode_base64("transaction_id=" + str(transaction_id)))
     if transaction_id:
@@ -19,6 +22,7 @@ def get_transaction(transaction_id=None):
     return jsonify({'message': 'Transaction not found'}), 404
 
 @transaction_bp.route('/api/Transaction/Create', methods=['POST'])
+@token.token_required
 def create_transaction():
     log.debug("Recive API: Create transaction")
     data = request.json
@@ -36,6 +40,7 @@ def create_transaction():
         return "error when create transaction", 500
 
 @transaction_bp.route('/api/Transaction/Update/<int:transaction_id>', methods=['POST'])
+@token.token_required
 def update_transaction(transaction_id):
     data = request.json
     log.debug("Recive API: Update transaction data:" + encode.encode_base64(str(data)))
@@ -49,6 +54,7 @@ def update_transaction(transaction_id):
     return jsonify({'message': 'Transaction not found'}), 404
 
 @transaction_bp.route('/api/Transaction/Delete/<int:transaction_id>', methods=['POST'])
+@token.token_required
 def delete_transaction(transaction_id):
     log.debug("Recive API: Delete " + encode.encode_base64("transaction_id=" + str(transaction_id)))
     deleted = transaction_action.delete_transaction(transaction_id)

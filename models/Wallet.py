@@ -7,6 +7,7 @@ from config.uct7_config import TimeUTC7
 from loguru import logger as log
 import modules.Base256Encode as endcode256
 from modules.Convert import SystemTimeToTimeNumber
+from modules.JwtToken import decode_jwt_token
 
 class LOCAL_WALLET(db.Model):
     __tablename__ = 'LOCAL_WALLET'
@@ -103,7 +104,7 @@ class Wallet_Action:
             self.log.error(f"Error retrieving wallet by user ID. Error: {str(e)}")
             return {'error': str(e)}
 
-    def update_wallet(self, wallet_id, username=None, balance=None, modifier=None):
+    def update_wallet(self, wallet_id, username=None, balance=None, fee=None,modifier=None):
         try:
             wallet = LOCAL_WALLET.query.get(wallet_id)
             if wallet:
@@ -111,9 +112,10 @@ class Wallet_Action:
                     wallet.username = username
                 if balance is not None:
                     wallet.balance = balance
-                if modifier:
-                    wallet.modifier = modifier
-                    wallet.modify_time = SystemTimeToTimeNumber(TimeUTC7())
+                if fee:
+                    wallet.fee = fee
+                wallet.modifier = modifier
+                wallet.modify_time = SystemTimeToTimeNumber(TimeUTC7())
                 
                 db.session.commit()
                 return {'success': 'Wallet updated successfully'}

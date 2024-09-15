@@ -4,11 +4,12 @@ from models.Role import Role_Action
 from config.Db_config import Config
 from loguru import logger as log
 import modules.Base64Encode as encode
-
+import modules.JwtToken as token
 role_bp = Blueprint('Role', __name__)
 role_action = Role_Action()
 
 @role_bp.route('/api/Role/Get/<int:role_id>', methods=['GET'])
+@token.token_required
 def get_role(role_id=None):
     log.debug("Recive API: /Role/Get/" + encode.encode_base64("role_id=" + str(role_id)))
     if role_id:
@@ -19,6 +20,7 @@ def get_role(role_id=None):
     return jsonify({'message': 'Role not found'}), 404
 
 @role_bp.route('/api/Role/Create', methods=['POST'])
+@token.token_required
 def create_role():
     log.debug("Recive API: Create role")
     data = request.json
@@ -36,6 +38,7 @@ def create_role():
         return "error when create role", 500
 
 @role_bp.route('/api/Role/Update/<int:role_id>', methods=['POST'])
+@token.token_required
 def update_role(role_id):
     data = request.json
     log.debug("Recive API: Update role data:" + encode.encode_base64(str(data)))
@@ -50,6 +53,7 @@ def update_role(role_id):
     return jsonify({'message': 'Role not found'}), 404
 
 @role_bp.route('/api/Role/Delete/<int:role_id>', methods=['POST'])
+@token.token_required
 def delete_role(role_id):
     log.debug("Recive API: Delete " + encode.encode_base64("role_id=" + str(role_id)))
     deleted = role_action.delete_role(role_id)
